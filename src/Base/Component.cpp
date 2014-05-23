@@ -11,7 +11,6 @@
 #include "Timer.hpp"
 #include "Property.hpp"
 
-
 #include <boost/foreach.hpp>
 
 namespace Base {
@@ -49,8 +48,6 @@ bool Component::initialize() {
 
 bool Component::start() {
 	if (state == Ready) {
-		// not needed anymore, done in configurator
-		//ortHandlers();
 
 		if (onStart()) {
 			state = Running;
@@ -130,18 +127,6 @@ double Component::step() {
 	Common::Timer timer;
 	if (state == Running) {
 		timer.restart();
-		// Old way - one onStep method
-		//onStep();
-
-		// New way - check, which handler is ready and call it
-		/*Base::EventHandlerInterface * handler = getReadyHandler();
-		if (handler) {
-			handler->execute();
-			return timer.elapsed();
-		} else {
-			CLOG(LDEBUG) << name_ << " has no active handler. Skipping.";
-			return 0;
-		}*/
 
 		typedef std::pair<std::string, std::vector<DataStreamInterface *> > HandlerTriggers;
 
@@ -155,7 +140,11 @@ double Component::step() {
 					break;
 				}
 			}
-			if (allready) handlers[ht.first]->execute();
+			if (allready) {
+				CLOG(LDEBUG) << "All triggers ready for " << ht.first << ". Executing...";
+				handlers[ht.first]->execute();
+				CLOG(LDEBUG) << ht.first << " execution done.";
+			}
 		}
 	} else {
 		CLOG(LWARNING) << name_ << " is not running. Step can't be done.\n";
@@ -236,17 +225,14 @@ void Component::addDependency(const std::string & name, DataStreamInterface* str
 		triggers[name].push_back(stream);
 	else
 		CLOG(LWARNING) << "Handlers can only depend on input streams.";
-		
-	for (int i = 0; i < triggers[name].size(); ++i) {
-		CLOG(LDEBUG) << triggers[name][i]->name();
-	}
 }
 
 void Component::sortHandlers() {
 	typedef std::pair<std::string, std::vector<DataStreamInterface *> > HandlerTriggers;
 
+	sorted_triggers.clear();
 	BOOST_FOREACH(HandlerTriggers ht, triggers) {
-		size_t i = 0;
+		std::size_t i = 0;
 		for (i = 0; i < sorted_triggers.size(); ++i) {
 			if (sorted_triggers[i].second.size() < ht.second.size()) break;
 		}

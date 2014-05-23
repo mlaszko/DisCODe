@@ -58,8 +58,8 @@ list(GET DISCODE_VERSION_PARTS 2 DISCODE_VERSION_PATCH)
 # include directories
 set(CMAKE_INCLUDE_DIRS_CONFIGCMAKE 
 	"${CMAKE_INSTALL_PREFIX}/include/Base" 
-	"${CMAKE_INSTALL_PREFIX}/include/Common" 
-	"${CMAKE_INSTALL_PREFIX}/include/Types" 
+	"${CMAKE_INSTALL_PREFIX}/include/Common"
+	"${CMAKE_INSTALL_PREFIX}/include/Types"  
 	"${CMAKE_INSTALL_PREFIX}/include"
 )
 
@@ -70,6 +70,7 @@ set(CMAKE_LIB_DIRS_CONFIGCMAKE "${CMAKE_INSTALL_PREFIX}/lib")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/DisCODeConfig.cmake.in" "${CMAKE_BINARY_DIR}/DisCODeConfig.cmake" IMMEDIATE @ONLY)
 
 install(FILES ${CMAKE_BINARY_DIR}/DisCODeConfig.cmake DESTINATION ${CMAKE_INSTALL_PREFIX}/share/DisCODe/)
+install(FILES ${CMAKE_BINARY_DIR}/DisCODeConfig.cmake DESTINATION ${CMAKE_INSTALL_PREFIX}/share/DisCODe/cmake/)
 
 
 # =======================================================================
@@ -90,7 +91,7 @@ set(CPACK_PACKAGE_INSTALL_DIRECTORY "DisCODe")
 #set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}\\\\doc_src\\\\discode.bmp")
 
 # License file
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 
 # Tell CPack all of the components to install. The "ALL"
 # refers to the fact that this is the set of components that

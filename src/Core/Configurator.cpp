@@ -64,7 +64,6 @@ void Configurator::expandMacros(ptree & pt, const std::vector<std::pair<std::str
 
 		val = p.second.data();
 		oval = val;
-		LOG(LINFO) << val;
 
 		if (val != "") {
 			substitute(val, dict);
@@ -153,10 +152,11 @@ Task Configurator::loadTask(std::string filename_, const std::vector<std::pair<s
 }
 
 void Configurator::loadSubtasks(const ptree * node, Task & task) {
-	LOG(LINFO) << "Loading subtasks\n";
+	LOG(LDEBUG) << "Loading subtasks";
 
 	std::string name;
 	std::string key;
+	std::string state;
 	Subtask * subtask;
 
 	BOOST_FOREACH(TreeNode nd, *node) {
@@ -173,16 +173,25 @@ void Configurator::loadSubtasks(const ptree * node, Task & task) {
 		}
 
 		name = tmp.get("<xmlattr>.name", "");
+		state = tmp.get("<xmlattr>.state", "running");
 
 		subtask = &task[name];
-		LOG(LNOTICE) << "" << name;
+		LOG(LDEBUG) << "Created subtask " << name;
+		if (state == "running") {
+			subtask->setInitStarted(true);
+		} else if (state == "stopped") {
+			subtask->setInitStarted(false);
+		} else {
+			LOG(LWARNING) << "Invalid value in STATE for subtask " << name << ". Subtask will start in RUNNING state.";
+			subtask->setInitStarted(true);
+		}
 
 		loadExecutors(&tmp, *subtask);
 	}
 }
 
 void Configurator::loadExecutors(const ptree * node, Subtask & subtask) {
-	LOG(LINFO) << "Creating execution threads\n";
+	LOG(LDEBUG) << "Creating execution threads";
 
 	Executor * ex;
 	std::string name;
@@ -211,7 +220,6 @@ void Configurator::loadExecutors(const ptree * node, Subtask & subtask) {
 		ex->setPeriod(period);
 
 		subtask+=ex;
-		LOG(LNOTICE) << "\t" << name;
 
 		loadComponents(&tmp, *ex);
 
@@ -220,7 +228,7 @@ void Configurator::loadExecutors(const ptree * node, Subtask & subtask) {
 }
 
 void Configurator::loadComponents(const ptree * node, Executor & executor) {
-	LOG(LINFO) << "Loading required components\n";
+	LOG(LDEBUG) << "Loading required components";
 
 	std::string name;
 	std::string type;
@@ -257,7 +265,7 @@ void Configurator::loadComponents(const ptree * node, Executor & executor) {
 			LOG(LNOTICE) << "Should be in form DCL:COMPONENT";
 			throw Common::DisCODeException("Task loading error.");
 		} else {
-			LOG(LNOTICE) << "\t\t" << name << " [" << dcl_comp[1] << " from " << dcl_comp[0] << "]";
+			LOG(LDEBUG) << "\t\t" << name << " [" << dcl_comp[1] << " from " << dcl_comp[0] << "]";
 		}
 
 		// try to create requested component
@@ -268,6 +276,9 @@ void Configurator::loadComponents(const ptree * node, Executor & executor) {
 		// and set them if property is persistent
 		loadProperties(&tmp, *cmp);
 
+		cmp->prepareInterface();
+		cmp->sortHandlers();
+
 		executor.addComponent(name, cmp, prio);
 
 		component_executor[name] = executor.name();
@@ -275,7 +286,7 @@ void Configurator::loadComponents(const ptree * node, Executor & executor) {
 }
 
 void Configurator::loadProperties(const ptree * node, Base::Component & component) {
-	LOG(LINFO) << "Loading properties";
+	LOG(LDEBUG) << "Loading properties";
 
 	std::string name;
 	std::string value;
@@ -299,7 +310,7 @@ void Configurator::loadProperties(const ptree * node, Base::Component & componen
 		name = tmp.get("<xmlattr>.name", "");
 		value = tmp.data();
 
-		LOG(LNOTICE) << "Property: " << name << "=" << value;
+		LOG(LDEBUG) << "Property: " << name << "=" << value;
 
 		prop = component.getProperty(name);
 		if (!prop) {
@@ -315,12 +326,10 @@ void Configurator::loadProperties(const ptree * node, Base::Component & componen
 		prop->retrieve(value);
 	}
 
-	component.prepareInterface();
-	component.sortHandlers();
 }
 
 void Configurator::loadConnections(const ptree * node) {
-	LOG(LINFO) << "Connecting data streams\n";
+	LOG(LDEBUG) << "Connecting data streams";
 
 	std::string src_name, src_port;
 	Base::Component * src_cmp;
@@ -395,7 +404,7 @@ void Configurator::loadConnections(const ptree * node) {
 
 			con->addListener(dst_ds);
 
-			LOG(LINFO) << src_name << " : " << src_port << " -> " << dst_name << " : " << dst_port;
+			//LOG(LINFO) << src_name << " : " << src_port << " -> " << dst_name << " : " << dst_port;
 		}
 	}
 }

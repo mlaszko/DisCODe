@@ -14,17 +14,18 @@ namespace Core {
 
 Subtask & Task::operator[](const std::string & name) {
 	if (subtasks.count(name) < 1) {
-		LOG(LWARNING) << "Subtask " << name << " absent. Creating new one...\n";
+		LOG(LDEBUG) << "Subtask " << name << " absent. Creating new one...";
 		subtasks[name] = Subtask(name);
 	}
 
 	return subtasks[name];
 }
 
-bool Task::start() {
+bool Task::start(bool init) {
 	LOG(LTRACE) << "Starting subtasks...";
 	BOOST_FOREACH(SubtaskPair sp, subtasks) {
-		sp.second.start();
+		if (!init || sp.second.initStarted())
+			sp.second.start();
 	}
 
 	LOG(LTRACE) << "Task started successfully";
