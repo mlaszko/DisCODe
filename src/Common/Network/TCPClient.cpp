@@ -44,32 +44,36 @@ bool TCPClient::connect(const std::string & host, const std::string & port)
 	hints.ai_socktype = SOCK_STREAM;
 
 	if ((rv = getaddrinfo(host.c_str(), port.c_str(), &hints, &servinfo)) != 0) {
-		std::cout << "getaddrinfo: " << gai_strerror(rv) << std::endl;
+		//std::cout << "getaddrinfo: " << gai_strerror(rv) << std::endl;
 		return false;
 	}
 
 	// loop through all the results and connect to the first we can
 	for (p = servinfo; p != NULL; p = p->ai_next) {
 		if ((m_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-			perror("client: socket");
+			//perror("client: socket");
 			continue;
 		}
 		if (::connect(m_sock, p->ai_addr, p->ai_addrlen) == -1) {
 			close(m_sock);
-			perror("client: connect");
+			//perror("client: connect");
 			continue;
 		}
 		break;
 	}
 	if (p == NULL) {
-		std::cout << "client: failed to connect\n";
+		//std::cout << "client: failed to connect\n";
 		return false;
 	}
 
 	inet_ntop(p->ai_family, get_in_addr((struct sockaddr *) p->ai_addr), s, sizeof s);
-	std::cout << "client: connecting to " << s << std::endl;
 
 	freeaddrinfo(servinfo); // all done with this structure
+	return true;
+}
+
+bool TCPClient::disconnect() {
+	close(m_sock);
 	return true;
 }
 
@@ -79,6 +83,8 @@ int TCPClient::recv(int msec_timeout)
 	bool ready = false;
 	int select_return;
 	fd_set sock;
+	int wdgcnt = 0;
+	int wdgcnt_limit = 100;
 
 	struct timeval tv, *ptv;
 	if (msec_timeout >= 0) {
@@ -89,26 +95,29 @@ int TCPClient::recv(int msec_timeout)
 		ptv = NULL;
 	}
 
-
 	while (!ready) {
 		FD_ZERO(&sock);
 		FD_SET(m_sock, &sock);
-//		std::cout << "Waiting on select...\n";
 		select_return = select(m_sock+1, &sock, NULL, NULL, ptv);
 
 		if (select_return == -1) {
-			perror("Select failed!");
 			return -1;
 		}
 		if (select_return == 0) {
-			// select timed out.
 			return m_size;
 		}
 
-//		std::cout << "Got sth...\n";
 		if (FD_ISSET(m_sock, &sock)) {
 			recvd = ::recv(m_sock, m_buf+m_size, m_buffer_size - m_size, 0);
 			m_size += recvd;
+
+			if (recvd == 0) {
+				wdgcnt++;
+				if (wdgcnt > wdgcnt_limit)
+					return -1;
+			} else {
+				wdgcnt = 0;
+			}
 
 			int expected_packet_size = m_completion_hook(m_buf, m_size);
 			int skip = 0;

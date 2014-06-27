@@ -3,6 +3,7 @@
 
 #include "ComponentWidget.hpp"
 #include "ComponentItem.hpp"
+#include "SubtaskItem.hpp"
 
 #include <QtGui>
 
@@ -16,19 +17,32 @@ MainWindow::MainWindow(QWidget *parent) :
 
     m_connected = false;
 
-    client = NULL;
-	ui->treeWidget->clear();
+    client = new DisCODe::Client;
+    client->setConnectionLostHandler(boost::bind(&MainWindow::onConnectionLost, this));
 
-	ui->dockWidget->hide();
+	tabifyDockWidget(ui->wComponents, ui->wSubtasks);
+
+	ui->wComponents->hide();
+	ui->wSubtasks->hide();
 	ui->mainToolBar->hide();
 	ui->menuBar->hide();
 	ui->scrollArea->setWidget(&wp);
 
 	connect(&wp, SIGNAL(do_connect_sig(const QString &, const QString &)), this, SLOT(do_connect(const QString &, const QString &)));
+	connect(this, SIGNAL(connectionLost()), this, SLOT(do_disconnect_on_connectionlost()), Qt::QueuedConnection);
+
+	connect(&cn, SIGNAL(connected()), this, SLOT(onConnectionEstablished()));
+	connect(&cn, SIGNAL(failed()), this, SLOT(onConnectionFailed()));
+	connect(&cn, SIGNAL(aborted()), this, SLOT(onConnectionAborted()));
 
 	QIcon * appicon = new QIcon;
 	appicon->addFile(":/icons/app", QSize(256,256));
 	QApplication::setWindowIcon(*appicon);
+
+	setTabPosition(Qt::AllDockWidgetAreas, QTabWidget::North);
+
+	wp.ui.stackedWidget->addWidget(&cn);
+	cn.setTextRoller(wp.ui.lblTitle);
 }
 
 MainWindow::~MainWindow()
@@ -36,43 +50,58 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+void MainWindow::startSubtask(const QString& name) {
+	task->startSubtask(name.toStdString());
+}
+
+void MainWindow::stopSubtask(const QString& name) {
+	task->stopSubtask(name.toStdString());
+}
+
 bool MainWindow::tryToConnect(const QString & host, const QString & port) {
-	client = new DisCODe::Client(host.toStdString(), port.toStdString());
-	if (client->connected())
+	if (client->connect(host.toStdString(), port.toStdString()))
 		return true;
 	else {
-		delete client;
-		client = NULL;
-		QMessageBox msgBox;
-		msgBox.setWindowTitle("Error");
-		msgBox.setText(host + ":" + port + " - connection refused.");
-		msgBox.setStandardButtons(QMessageBox::Ok);
-		msgBox.setDefaultButton(QMessageBox::Ok);
-		msgBox.exec();
+		wp.showError(host + ":" + port + " - connection refused.");
 		return false;
 	}
 }
 
 void MainWindow::do_connect(const QString & host, const QString & port) {
-	if (tryToConnect(host, port)) {
-		setup(client);
-		m_connected = true;
-		ui->actionConnect->setIcon(QIcon(":/icons/disconnect"));
+	wp.ui.stackedWidget->setCurrentIndex(4);
+	cn.setup(client, host, port);
+}
 
-		ui->dockWidget->show();
-		ui->menuBar->show();
-		ui->mainToolBar->show();
-		ui->scrollArea->takeWidget();
-	}
+void MainWindow::onConnectionEstablished() {
+	setup(client);
+	m_connected = true;
+	ui->actionConnect->setIcon(QIcon(":/icons/disconnect"));
+
+	ui->wComponents->show();
+	ui->wSubtasks->show();
+	ui->menuBar->show();
+	ui->mainToolBar->show();
+	ui->scrollArea->takeWidget();
+}
+
+void MainWindow::onConnectionFailed() {
+	client->disconnect();
+
+	QString msg = QString(client->host().c_str()) + ":" + QString(client->port().c_str()) + " - connection refused.";
+
+	wp.showError(msg);
+}
+
+void MainWindow::onConnectionAborted() {
+	client->disconnect();
+	wp.restorePage();
 }
 
 void MainWindow::do_disconnect() {
-	delete client;
+	client->disconnect();
 	delete task;
-	client = NULL;
 	ui->actionConnect->setIcon(QIcon(":/icons/connect"));
 
-	ui->treeWidget->clear();
 	ui->scrollArea->takeWidget();
 
 	foreach (QWidget * cw, component_props)
@@ -82,63 +111,69 @@ void MainWindow::do_disconnect() {
 
 	m_connected = false;
 
-	ui->dockWidget->hide();
+	ui->wComponents->hide();
+	ui->wSubtasks->hide();
 	ui->mainToolBar->hide();
 	ui->menuBar->hide();
 	wp.reset();
 	ui->scrollArea->setWidget(&wp);
 }
 
+void MainWindow::do_disconnect_on_connectionlost() {
+	if (!m_connected) return;
+	do_disconnect();
+
+	wp.showError("Connection with DisCODe is lost.");
+}
+
 void MainWindow::setup(DisCODe::Client * c) {
-	client = c;
+//	client = c;
 	task = new DisCODe::TaskProxy(client);
 	task->refresh();
 
 	system = new DisCODe::SystemProxy(client);
 
-	ui->treeWidget->clear();
 	ui->listComponents->clear();
+	ui->listSubtasks->clear();
 
-	QTreeWidgetItem * i_task = new QTreeWidgetItem;
-	i_task->setText(0, client->host().c_str());
-	i_task->setText(1, client->port().c_str());
+	QVector <ComponentItem*> items;
 
 	for (int i = 0; i < task->countExecutors(); ++i) {
 		DisCODe::ExecutorProxy * ex = task->getExecutor(i);
-		QTreeWidgetItem * i_ex = new QTreeWidgetItem;
-		i_ex->setText(0, ex->name().c_str());
 
 		for (int j = 0; j < ex->countComponents(); ++j) {
 			DisCODe::ComponentProxy * cp = ex->getComponent(j);
-			QTreeWidgetItem * i_cp = new QTreeWidgetItem;
-			i_cp->setText(0, cp->name().c_str());
-			i_ex->addChild(i_cp);
 
-			component_props[cp->name().c_str()] = new ComponentWidget(cp);
+			component_props[cp->name().c_str()] = new ComponentWidget(cp, system);
 
-
-
-
-			ComponentItem *myItem = new ComponentItem(cp->name().c_str(), "type", ex->name().c_str(), 0);
-			QListWidgetItem *item = new QListWidgetItem();
-			item->setSizeHint(QSize(0,50));
-			ui->listComponents->addItem(item);
-			ui->listComponents->setItemWidget(item,myItem);
+			ComponentItem *myItem = new ComponentItem(cp->name().c_str(), cp->getType().c_str(), ex->name().c_str(), cp->getPriority());
+			items.push_back(myItem);
 		}
 
-		i_task->addChild(i_ex);
 	}
 
-	ui->treeWidget->addTopLevelItem(i_task);
-	ui->treeWidget->expandAll();
-}
+	qSort(items.begin(), items.end(), PtrLess<ComponentItem>());
+	Q_FOREACH(ComponentItem * myItem, items) {
+		QListWidgetItem *item = new QListWidgetItem();
+		item->setSizeHint(QSize(0,50));
+		ui->listComponents->addItem(item);
+		ui->listComponents->setItemWidget(item,myItem);
+	}
 
-void MainWindow::on_treeWidget_itemClicked(QTreeWidgetItem * item, int /*column*/) {
-	if (!item->parent()) { // Task
-	} else if (!item->parent()->parent()) { // Executor
-	} else { // Component
-		ui->scrollArea->takeWidget();
-		ui->scrollArea->setWidget(component_props[item->text(0)]);
+	for (int i = 0; i < task->countSubtasks(); ++i) {
+		QString state;
+		if (task->subtaskState(task->getSubtask(i).c_str()) == DisCODe::TaskProxy::Running)
+			state = "Running";
+		else
+			state = "Stopped";
+
+		SubtaskItem *sitem = new SubtaskItem(task->getSubtask(i).c_str(), state, this);
+		QListWidgetItem *item = new QListWidgetItem();
+		item->setSizeHint(QSize(0,50));
+		ui->listSubtasks->addItem(item);
+		ui->listSubtasks->setItemWidget(item,sitem);
+		connect(sitem, SIGNAL(startSubtask(const QString &)), this, SLOT(startSubtask(const QString &)));
+		connect(sitem, SIGNAL(stopSubtask(const QString &)), this, SLOT(stopSubtask(const QString &)));
 	}
 }
 

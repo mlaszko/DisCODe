@@ -32,6 +32,10 @@ public:
 	std::string listHandlers(std::vector<std::string> args);
 	std::string triggerHandler(std::vector<std::string> args);
 
+	std::string getMetaInfo(std::vector<std::string> args);
+
+	std::string setBump(std::vector<std::string> args);
+
 
 private:
 	ComponentManager & m_component_manager;

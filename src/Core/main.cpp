@@ -244,9 +244,9 @@ int main(int argc, char* argv[])
 		configurator.setComponentManager(&km);
 		configurator.setConnectionManager(&cm);
 
-		TaskInformer task_informer(task);
+		TaskInformer task_informer(&task);
 		ComponentInformer component_informer(km);
-		SystemInformer system_informer(running);
+		SystemInformer system_informer(running, log_lvl);
 		ExecutorInformer executor_informer(em);
 
 

@@ -4,7 +4,10 @@
 #include "CommandInterpreter.hpp"
 #include "Property.hpp"
 
+#include <sstream>
+
 #include <boost/bind.hpp>
+#include <boost/lexical_cast.hpp>
 
 namespace Core {
 
@@ -23,6 +26,9 @@ void ComponentInformer::registerHandlers(CommandInterpreter & ci) {
 
 	ci.addHandler("listHandlers", boost::bind(&ComponentInformer::listHandlers,  this, _1));
 	ci.addHandler("triggerHandler", boost::bind(&ComponentInformer::triggerHandler,  this, _1));
+
+	ci.addHandler("getMetaInfo", boost::bind(&ComponentInformer::getMetaInfo,  this, _1));
+	ci.addHandler("setBump", boost::bind(&ComponentInformer::setBump,  this, _1));
 }
 
 std::string ComponentInformer::listProperties(std::vector<std::string> args) {
@@ -218,6 +224,48 @@ std::string ComponentInformer::triggerHandler(std::vector<std::string> args) {
 	}
 
 	handler->execute();
+	return "OK";
+}
+
+std::string ComponentInformer::getMetaInfo(std::vector<std::string> args) {
+	if (args.size() != 1) {
+		return "No component name specified.";
+	}
+
+	Base::Component * component;
+
+	try {
+		component = m_component_manager.getComponent(args[0]);
+	}
+	catch(...) {
+		return "Component not found";
+	}
+
+	std::stringstream ss;
+	ss << component->getType() << "\n";
+	ss << component->getPriority() << "\n";
+	ss << component->getBump() << "\n";
+
+	return ss.str();
+}
+
+std::string ComponentInformer::setBump(std::vector<std::string> args) {
+	if (args.size() != 2) {
+		return "Invalid command syntax.";
+	}
+
+	Base::Component * component;
+
+	try {
+		component = m_component_manager.getComponent(args[0]);
+	}
+	catch(...) {
+		return "Component not found";
+	}
+
+	/// \todo sprawdzic rezultat (czy udal sie lexical cast), sprawdzic, czy wlasciwy poziom zostal ustawiony itp.
+	component->setBump(boost::lexical_cast<int>(args[1]));
+
 	return "OK";
 }
 

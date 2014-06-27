@@ -13,6 +13,7 @@
 #include "../Client/DisCODeClient.hpp"
 
 #include "WelcomePage.hpp"
+#include "Connecting.hpp"
 
 class QTreeWidgetItem;
 
@@ -34,11 +35,17 @@ public:
 
     void setup(DisCODe::Client * c);
 
+    void onConnectionLost() {
+    	emit connectionLost();
+    }
+
+signals:
+	void connectionLost();
+
 protected:
 	void closeEvent(QCloseEvent *event);
 
 public slots:
-	void on_treeWidget_itemClicked(QTreeWidgetItem * item, int column);
 	void on_listComponents_itemClicked(QListWidgetItem * item);
 
 	void on_actionConnect_triggered(bool checked);
@@ -46,6 +53,14 @@ public slots:
 
 	void do_connect(const QString & host,const QString & port);
 	void do_disconnect();
+	void do_disconnect_on_connectionlost();
+
+	void onConnectionEstablished();
+	void onConnectionFailed();
+	void onConnectionAborted();
+
+	void startSubtask(const QString & name);
+	void stopSubtask(const QString & name);
 
 private:
     Ui::MainWindow *ui;
@@ -61,6 +76,7 @@ private:
 	bool m_connected;
 
 	WelcomePage wp;
+	Connecting cn;
 };
 
 #endif // MAINWINDOW_H

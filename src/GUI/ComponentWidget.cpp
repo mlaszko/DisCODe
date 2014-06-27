@@ -5,16 +5,38 @@
 
 #include <boost/lexical_cast.hpp>
 
-ComponentWidget::ComponentWidget(DisCODe::ComponentProxy * proxy, QWidget *parent) :
+ComponentWidget::ComponentWidget(DisCODe::ComponentProxy * proxy, DisCODe::SystemProxy * system, QWidget *parent) :
 	QWidget(parent),
-	m_proxy(proxy)
+	m_proxy(proxy),
+	m_system(system)
 {
 
 	QVBoxLayout * top_layout = new QVBoxLayout;
 
-	QString group_separator = ".";
+
+	// Log level indicator
+	QSignalMapper * logmapper = new QSignalMapper(this);
+	QGroupBox * log_box = new QGroupBox("Log level");
+	QHBoxLayout * log_lay = new QHBoxLayout;
+	QStringList levels;
+	levels << "Trace" << "Debug" << "Info" << "Notice" << "Warning" << "Error" << "Critical" << "Fatal";
+	int syslvl = system->getLogLvl();
+	for (int i = 0; i < levels.count(); ++i) {
+		QPushButton * btn = new QPushButton(levels[i]);
+		btn->setCheckable(true);
+		btn->setAutoExclusive(true);
+		if (i == proxy->getBump()+syslvl) btn->setChecked(true);
+		btn->setMinimumWidth(30);
+		log_lay->addWidget(btn);
+		logmapper->setMapping(btn, syslvl-i);
+		connect(btn, SIGNAL(clicked()), logmapper, SLOT(map()), Qt::QueuedConnection);
+	}
+	log_box->setLayout(log_lay);
+	connect(logmapper, SIGNAL(mapped(int)), this, SLOT(setBump(int)));
+	top_layout->addWidget(log_box);
 
 	// Properties
+	QString group_separator = ".";
 	int pc = proxy->countProperties();
 
 	if (pc > 0) {
@@ -43,9 +65,6 @@ ComponentWidget::ComponentWidget(DisCODe::ComponentProxy * proxy, QWidget *paren
 				group = pname.left(pname.indexOf(group_separator));
 				pname.remove(0, pname.indexOf(group_separator)+1);
 			}
-
-
-			std::cout << pname.toStdString() << "(" << group.toStdString() << "): " << ptype.toStdString() << std::endl;
 
 			if (!boxes.contains(group)) {
 				boxes[group] = new QGroupBox(group);
@@ -228,7 +247,6 @@ ComponentWidget::~ComponentWidget()
 
 void ComponentWidget::triggerHandler(const QString & name) {
 	m_proxy->triggerHandler(name.toStdString());
-	//std::cout << name.toStdString() << std::endl;
 }
 
 void ComponentWidget::setProperty(QWidget * widget) {
@@ -256,3 +274,6 @@ void ComponentWidget::setProperty(QWidget * widget) {
 	//std::cout << name.toStdString() << std::endl;
 }
 
+void ComponentWidget::setBump(int bump) {
+	m_proxy->setBump(bump);
+}
