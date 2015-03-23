@@ -205,16 +205,13 @@ class DisCODeWizard(object):
 	
 	def generateEvents(self, cmp_name):
 		
-		TMPLFields = "\n\t// Handlers\n"
 		TMPLPrepInterface = "\t// Register handlers\n"
 		TMPLMethodsHeaders = "\t// Handlers\n"
 		TMPLMethodsCode = ""
 		
 		for h in self.handlers:
-			TMPLFields += "\tBase::EventHandler2 h_{};\n".format(h.name)
 			TMPLMethodsHeaders += "\tvoid {}();\n".format(h.name)
-			TMPLPrepInterface += '\th_{0}.setup(boost::bind(&{1}::{0}, this));\n'.format(h.name, cmp_name)
-			TMPLPrepInterface += '\tregisterHandler("{0}", &h_{0});\n'.format(h.name)
+			TMPLPrepInterface += '\tregisterHandler("{0}", boost::bind(&{1}::{0}, this));\n'.format(h.name, cmp_name)
 			TMPLMethodsCode += "void {}::{}()".format(cmp_name, h.name) + " {\n}\n\n"
 			
 			if(h.type == 0):
@@ -227,7 +224,6 @@ class DisCODeWizard(object):
 				for d in h.deps:
 					TMPLPrepInterface += '\taddDependency("{}", &{});\n'.format(h.name, d)
 			
-		self.dic['%TMPLFields%'] = self.dic['%TMPLFields%'] + TMPLFields
 		self.dic['%TMPLPrepInterface%'] = self.dic['%TMPLPrepInterface%'] + TMPLPrepInterface
 		self.dic['%TMPLMethodsHeaders%'] = self.dic['%TMPLMethodsHeaders%'] + TMPLMethodsHeaders
 		self.dic['%TMPLMethodsCode%'] = self.dic['%TMPLMethodsCode%'] + TMPLMethodsCode
